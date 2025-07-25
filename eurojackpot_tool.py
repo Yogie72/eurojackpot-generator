@@ -17,12 +17,12 @@ def normalisiere_datum(text):
     if not text or text.lower() == "unbekannt":
         return None
     try:
-        # Beispiel: "Freitag, 25. Juli 2025"
         if "," in text:
             datum_text = text.split(",", 1)[1].strip()
         else:
             datum_text = text.strip()
-        dt = datetime.strptime(datum_text, "%d. %B %Y")
+        # Datumsformat ohne Punkt nach dem Tag
+        dt = datetime.strptime(datum_text, "%d %B %Y")
         return dt.strftime("%d.%m.%Y")
     except Exception as e:
         st.warning(f"⚠️ Konnte Datum nicht verarbeiten: '{text}' ({e})")
