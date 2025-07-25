@@ -32,19 +32,19 @@ def lade_aktuelle_ziehung_westlotto():
         return None
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Datum suchen (p-Tag mit Klasse headline__date)
-    datum_p = soup.select_one("p.headline__date")
+    # Datum aus <p class="date"> holen
+    datum_p = soup.select_one("p.date")
     if not datum_p:
         st.warning("⚠️ Kein Datum gefunden.")
         return None
     datum_text = datum_p.get_text(strip=True)  # z.B. "Freitag, 25. Juli 2025"
 
-    # Hauptzahlen finden: td mit Klasse result-number
-    zahlen_td = soup.select("td.result-number")
+    # Zahlen aus <td class="number">
+    zahlen_td = soup.select("td.number")
     zahlen = [int(td.get_text(strip=True)) for td in zahlen_td if td.get_text(strip=True).isdigit()]
 
-    # Eurozahlen finden: td mit Klasse result-euro
-    euro_td = soup.select("td.result-euro")
+    # Eurozahlen aus <td class="euroNumber">
+    euro_td = soup.select("td.euroNumber")
     eurozahlen = [int(td.get_text(strip=True)) for td in euro_td if td.get_text(strip=True).isdigit()]
 
     if len(zahlen) != 5 or len(eurozahlen) != 2:
