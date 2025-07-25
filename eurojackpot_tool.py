@@ -49,7 +49,6 @@ st.table(df)
 buffer = io.BytesIO()
 with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
     df.to_excel(writer, index=False, sheet_name="Tipps")
-    writer.save()
 excel_data = buffer.getvalue()
 st.download_button("Excel herunterladen", excel_data, file_name="eurojackpot_tipps.xlsx", mime="application/vnd.ms-excel")
 
