@@ -13,12 +13,17 @@ ARCHIV_DATEI = "ziehungen.json"
 def lade_archiv():
     if not os.path.exists(ARCHIV_DATEI):
         return []
-    with open(ARCHIV_DATEI, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def speichere_archiv(archiv):
-    with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
-        json.dump(archiv, f, indent=2, ensure_ascii=False)
+    try:
+        with open(ARCHIV_DATEI, "r", encoding="utf-8") as f:
+            daten = f.read().strip()
+            if not daten:
+                # Datei ist leer
+                return []
+            return json.loads(daten)
+    except (json.JSONDecodeError, ValueError):
+        st.warning("⚠️ Archiv beschädigt oder ungültig. Es wird neu gestartet.")
+        os.remove(ARCHIV_DATEI)  # beschädigte Datei löschen
+        return []
 
 # Ziehung scrapen
 def lade_aktuelle_ziehung():
