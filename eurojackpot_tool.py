@@ -6,7 +6,6 @@ import os
 
 ARCHIV_DATEI = "archiv.json"
 
-# 📁 Archiv laden
 def lade_archiv():
     if not os.path.exists(ARCHIV_DATEI):
         return []
@@ -17,17 +16,13 @@ def lade_archiv():
         os.remove(ARCHIV_DATEI)
         return []
 
-# 💾 Archiv speichern
 def speichere_archiv(archiv):
     with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
         json.dump(archiv, f, indent=2, ensure_ascii=False)
 
-# 🌐 Aktuelle Ziehung von eurojackpot.net laden
 def lade_aktuelle_ziehung_eurojackpot():
-    url = "https://www.eurojackpot.net/de/gewinnzahlen"
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
+    url = "https://www.euro-jackpot.net/de/gewinnzahlen"
+    headers = {"User-Agent": "Mozilla/5.0"}
     r = requests.get(url, headers=headers)
     if r.status_code != 200:
         st.error(f"Fehler beim Laden: Status {r.status_code}")
@@ -35,31 +30,31 @@ def lade_aktuelle_ziehung_eurojackpot():
 
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # 📅 Ziehungsdatum extrahieren
-    datum_elem = soup.select_one("div.date")
-    if not datum_elem:
-        st.warning("⚠️ Kein Ziehungsdatum gefunden.")
+    # Datum suchen: Text unmittelbar unter Überschrift
+    headline = soup.find(lambda tag: tag.name in ["h1","h2","h3"] and "Gewinnzahlen" in tag.text)
+    if not headline:
+        st.warning("⚠️ Überschrift 'Gewinnzahlen' nicht gefunden.")
         return None
-    datum_raw = datum_elem.get_text(strip=True)
+    datum_raw = headline.find_next_sibling(text=True)
+    if not datum_raw:
+        st.warning("⚠️ Keinen Datumstext hinter Überschrift gefunden.")
+        return None
+    datum = datum_raw.strip()
 
-    # 🔢 Hauptzahlen
-    zahlen = [int(e.get_text(strip=True)) for e in soup.select("ul.balls li.ball")]
-    # ⭐ Eurozahlen
-    eurozahlen = [int(e.get_text(strip=True)) for e in soup.select("ul.balls li.euro")]
-
-    if len(zahlen) != 5 or len(eurozahlen) != 2:
-        st.warning("⚠️ Nicht alle Zahlen konnten geladen werden.")
+    # Gewinnzahlen: als Folge von <li>
+    items = soup.select("div.numbers ul.main li")
+    euro_items = soup.select("div.numbers ul.euro li")
+    if len(items) != 5 or len(euro_items) != 2:
+        st.warning("⚠️ Ungenaue Anzahl der Gewinnzahlen gefunden.")
         return None
 
-    return {
-        "datum": datum_raw,
-        "zahlen": zahlen,
-        "eurozahlen": eurozahlen
-    }
+    zahlen = [int(li.text.strip()) for li in items]
+    eurozahlen = [int(li.text.strip()) for li in euro_items]
 
-# 🧠 Hauptfunktion
+    return {"datum": datum, "zahlen": zahlen, "eurozahlen": eurozahlen}
+
 def main():
-    st.title("🎯 Eurojackpot – Aktuelle Ziehung (eurojackpot.net)")
+    st.title("🎯 Eurojackpot – Live von eurojackpot.net")
 
     archiv = lade_archiv()
     aktuelle = lade_aktuelle_ziehung_eurojackpot()
@@ -69,27 +64,24 @@ def main():
         st.write("🔢 Hauptzahlen:", ", ".join(map(str, aktuelle["zahlen"])))
         st.write("⭐ Eurozahlen:", ", ".join(map(str, aktuelle["eurozahlen"])))
 
-        # Archiv aktualisieren
         if not any(e["datum"] == aktuelle["datum"] for e in archiv):
             archiv.append(aktuelle)
             speichere_archiv(archiv)
-            st.info("📁 Neue Ziehung wurde dem Archiv hinzugefügt.")
+            st.info("📁 Neue Ziehung dem Archiv hinzugefügt.")
     else:
         st.error("❌ Konnte aktuelle Ziehung nicht laden.")
 
-    # 📂 Archivierte Ziehungen anzeigen
     if st.checkbox("📚 Archiv anzeigen"):
         if not archiv:
-            st.warning("Noch keine archivierten Ziehungen gespeichert.")
+            st.warning("Keine archivierten Ziehungen vorhanden.")
         else:
-            for eintrag in sorted(archiv, key=lambda x: x["datum"], reverse=True):
+            for ein in sorted(archiv, key=lambda x: x["datum"], reverse=True):
                 st.markdown(
-                    f"📅 **{eintrag['datum']}** – Zahlen: "
-                    f"{', '.join(map(str, eintrag['zahlen']))} | "
-                    f"Eurozahlen: {', '.join(map(str, eintrag['eurozahlen']))}"
+                    f"📅 **{ein['datum']}** – Zahlen: "
+                    f"{', '.join(map(str, ein['zahlen']))} | "
+                    f"Eurozahlen: {', '.join(map(str, ein['eurozahlen']))}"
                 )
 
-# ▶️ Startpunkt
 if __name__ == "__main__":
     main()
 
