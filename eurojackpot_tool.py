@@ -56,8 +56,13 @@ def lade_aktuelle_ziehung():
         zahlen = [int(e.text) for e in soup.select("div.numbers > ul.main > li")]
         euro = [int(e.text) for e in soup.select("div.numbers > ul.euro > li")]
         datum_element = soup.select_one("div.result > h3")
-        datum = datum_element.text.strip() if datum_element else "Unbekannt"
-        return {"datum": datum, "zahlen": zahlen, "eurozahlen": euro}
+        if datum_element:
+            datum_raw = datum_element.text.strip()
+            st.write(f"🔍 Rohes Datum von der Webseite: '{datum_raw}'")
+        else:
+            datum_raw = "Unbekannt"
+            st.warning("⚠️ Kein Datum auf der Webseite gefunden.")
+        return {"datum": datum_raw, "zahlen": zahlen, "eurozahlen": euro}
     except Exception as e:
         st.error(f"❌ Fehler beim Parsen: {e}")
         return None
