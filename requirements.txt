@@ -3,3 +3,4 @@ fpdf
 pandas
 xlsxwriter
 plotly
+beautifulsoup4
