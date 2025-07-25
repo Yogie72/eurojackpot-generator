@@ -27,6 +27,9 @@ def lade_archiv():
 
 # Ziehung scrapen
 def lade_aktuelle_ziehung():
+    st.write("🧪 Debug: Gescraptes Datum:", aktuelle_ziehung["datum"])
+for eintrag in archiv:
+    st.write("📁 Im Archiv:", eintrag.get("datum"))
     url = "https://www.euro-jackpot.net/de/gewinnzahlen"
     r = requests.get(url)
     if r.status_code != 200:
