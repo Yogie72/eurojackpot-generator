@@ -1,4 +1,79 @@
 import streamlit as st
+import requests
+from bs4 import BeautifulSoup
+import json
+import os
+from collections import Counter
+import pandas as pd
+
+ARCHIV_DATEI = "ziehungen.json"
+
+# Archiv laden & speichern
+def lade_archiv():
+    if not os.path.exists(ARCHIV_DATEI):
+        return []
+    with open(ARCHIV_DATEI, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def speichere_archiv(archiv):
+    with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
+        json.dump(archiv, f, indent=2, ensure_ascii=False)
+
+# Live-Daten von euro-jackpot.net laden
+def lade_aktuelle_ziehung():
+    url = "https://www.euro-jackpot.net/de/gewinnzahlen"
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    soup = BeautifulSoup(r.text, "html.parser")
+    try:
+        zahlen = [int(e.text) for e in soup.select("div.numbers > ul.main > li")]
+        euro = [int(e.text) for e in soup.select("div.numbers > ul.euro > li")]
+        datum_element = soup.select_one("div.result > h3")
+        datum = datum_element.text.strip() if datum_element else "Unbekannt"
+        return {"datum": datum, "zahlen": zahlen, "eurozahlen": euro}
+    except Exception as e:
+        st.error(f"Fehler beim Parsen: {e}")
+        return None
+
+# Häufigkeiten berechnen
+def berechne_haeufigkeit(archiv):
+    alle = [zahl for eintrag in archiv for zahl in eintrag['zahlen']]
+    zaehler = Counter(alle)
+    df = pd.DataFrame.from_dict(zaehler, orient='index', columns=['Häufigkeit'])
+    df.index.name = 'Zahl'
+    return df.reset_index().sort_values('Zahl')
+
+# === Streamlit UI ===
+
+st.header("🔄 Aktuelle Eurojackpot-Ziehung (Live + Archiv)")
+
+# Archiv & aktuelle Ziehung laden
+archiv = lade_archiv()
+aktuelle_ziehung = lade_aktuelle_ziehung()
+
+if aktuelle_ziehung:
+    st.success(f"Ziehung vom {aktuelle_ziehung['datum']}")
+    st.write("**Zahlen:**", aktuelle_ziehung['zahlen'])
+    st.write("**Eurozahlen:**", aktuelle_ziehung['eurozahlen'])
+
+    # prüfen, ob schon gespeichert
+    if not any(z['datum'] == aktuelle_ziehung['datum'] for z in archiv):
+        archiv.append(aktuelle_ziehung)
+        speichere_archiv(archiv)
+        st.info("✅ Neue Ziehung wurde zum Archiv hinzugefügt.")
+    else:
+        st.info("ℹ️ Ziehung ist bereits im Archiv.")
+
+    # Häufigkeit anzeigen
+    df_freq = berechne_haeufigkeit(archiv)
+    st.subheader("📊 Häufigkeit aller Zahlen (aus Archiv)")
+    st.dataframe(df_freq)
+
+else:
+    st.error("❌ Die aktuellen Zahlen konnten nicht geladen werden.")
+
+import streamlit as st
 import pandas as pd
 import random
 import io
