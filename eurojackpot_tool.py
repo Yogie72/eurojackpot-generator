@@ -1,117 +1,96 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
 import json
 import os
-from datetime import datetime
 
-ARCHIV_DATEI = "ziehungen.json"
-
-def normalisiere_datum(text):
-    if not text or text.lower() == "unbekannt":
-        return None
-    try:
-        if "," in text:
-            datum_text = text.split(",", 1)[1].strip()
-        else:
-            datum_text = text.strip()
-
-        monate = {
-            "Januar": 1,
-            "Februar": 2,
-            "März": 3,
-            "April": 4,
-            "Mai": 5,
-            "Juni": 6,
-            "Juli": 7,
-            "August": 8,
-            "September": 9,
-            "Oktober": 10,
-            "November": 11,
-            "Dezember": 12,
-        }
-
-        parts = datum_text.replace(".", "").split()
-        tag = int(parts[0])
-        monat_name = parts[1]
-        jahr = int(parts[2])
-        monat = monate.get(monat_name)
-
-        if monat is None:
-            raise ValueError(f"Unbekannter Monat: {monat_name}")
-
-        dt = datetime(jahr, monat, tag)
-        return dt.strftime("%d.%m.%Y")
-    except Exception as e:
-        st.warning(f"⚠️ Konnte Datum nicht verarbeiten: '{text}' ({e})")
-        return None
+ARCHIV_DATEI = "archiv.json"
 
 def lade_archiv():
     if not os.path.exists(ARCHIV_DATEI):
         return []
     try:
         with open(ARCHIV_DATEI, "r", encoding="utf-8") as f:
-            daten = f.read().strip()
-            if not daten:
-                return []
-            return json.loads(daten)
-    except (json.JSONDecodeError, ValueError):
-        st.warning("⚠️ Archiv beschädigt oder leer – wird neu gestartet.")
-        os.remove(ARCHIV_DATEI)
+            return json.load(f)
+    except json.JSONDecodeError:
+        os.remove(ARCHIV_DATEI)  # beschädigte Datei löschen
         return []
 
 def speichere_archiv(archiv):
     with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
         json.dump(archiv, f, indent=2, ensure_ascii=False)
 
-def lade_aktuelle_ziehung():
-    url = "https://www.euro-jackpot.net/de/gewinnzahlen"
+def lade_aktuelle_ziehung_lotto24():
+    url = "https://www.lotto24.de/eurojackpot/gewinnzahlen"
     r = requests.get(url)
     if r.status_code != 200:
-        st.error("❌ Konnte Webseite nicht laden.")
+        st.error(f"Fehler beim Laden der Seite: Status {r.status_code}")
         return None
+    
     soup = BeautifulSoup(r.text, "html.parser")
-    try:
-        datum_element = soup.select_one("div.date.sprite")
-        datum_raw = datum_element.text.strip() if datum_element else "Unbekannt"
-        st.write(f"🔍 Rohes Datum von der Webseite: '{datum_raw}'")
 
-        zahlen = [int(li.span.text) for li in soup.select("ul.balls li.ball")]
-        euro = [int(li.span.text) for li in soup.select("ul.balls li.euro")]
-
-        return {"datum": datum_raw, "zahlen": zahlen, "eurozahlen": euro}
-    except Exception as e:
-        st.error(f"❌ Fehler beim Parsen: {e}")
+    datum_element = soup.select_one("div.draw-header__date")
+    if not datum_element:
+        st.error("Kein Datum auf der Webseite gefunden.")
         return None
+    datum_roh = datum_element.text.strip()
+    try:
+        datum = datetime.strptime(datum_roh, "%d.%m.%Y").strftime("%d. %B %Y")
+    except Exception:
+        datum = datum_roh
 
-st.title("🎯 Eurojackpot Tool – Aktuelle Ziehung & Analyse")
+    zahlen_elements = soup.select("div.draw-numbers__number--main")
+    zahlen = []
+    for elem in zahlen_elements:
+        try:
+            zahlen.append(int(elem.text.strip()))
+        except:
+            pass
 
-archiv = lade_archiv()
-aktuelle_ziehung = lade_aktuelle_ziehung()
+    euro_elements = soup.select("div.draw-numbers__number--euro")
+    eurozahlen = []
+    for elem in euro_elements:
+        try:
+            eurozahlen.append(int(elem.text.strip()))
+        except:
+            pass
 
-if aktuelle_ziehung:
-    st.success(f"📅 Aktuelle Ziehung vom **{aktuelle_ziehung['datum']}**")
-    st.write("🔢 Zahlen:", ", ".join(str(z) for z in aktuelle_ziehung['zahlen']))
-    st.write("⭐ Eurozahlen:", ", ".join(str(e) for e in aktuelle_ziehung['eurozahlen']))
+    if len(zahlen) != 5 or len(eurozahlen) != 2:
+        st.warning("Es konnten nicht alle Gewinnzahlen gefunden werden.")
+    
+    return {
+        "datum": datum,
+        "zahlen": zahlen,
+        "eurozahlen": eurozahlen
+    }
 
-    neues_datum = normalisiere_datum(aktuelle_ziehung['datum'])
+def main():
+    st.title("Eurojackpot - Aktuelle Ziehung von lotto24.de")
 
-    if neues_datum is None:
-        st.error("❌ Aktuelles Datum konnte nicht normalisiert werden.")
-    else:
-        bereits_im_archiv = any(
-            isinstance(z, dict) and 'datum' in z and normalisiere_datum(z['datum']) == neues_datum
-            for z in archiv
-        )
+    archiv = lade_archiv()
+    aktuelle_ziehung = lade_aktuelle_ziehung_lotto24()
 
-        if not bereits_im_archiv:
+    if aktuelle_ziehung:
+        st.success(f"📅 Aktuelle Ziehung vom **{aktuelle_ziehung['datum']}**")
+        st.write("🔢 Zahlen:", ", ".join(str(z) for z in aktuelle_ziehung['zahlen']))
+        st.write("⭐ Eurozahlen:", ", ".join(str(e) for e in aktuelle_ziehung['eurozahlen']))
+
+        # Archiv erweitern, falls noch nicht vorhanden
+        if not any(e['datum'] == aktuelle_ziehung['datum'] for e in archiv):
             archiv.append(aktuelle_ziehung)
             speichere_archiv(archiv)
-            st.success("✅ Neue Ziehung gespeichert.")
-        else:
-            st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
-else:
-    st.error("❌ Konnte aktuelle Ziehung nicht laden.")
+            st.info("Aktuelle Ziehung zum Archiv hinzugefügt.")
+    else:
+        st.error("❌ Konnte aktuelle Ziehung nicht laden.")
+
+    # Archiv-Anzeige (optional)
+    if st.checkbox("Archivierte Ziehungen anzeigen"):
+        for eintrag in sorted(archiv, key=lambda x: x['datum'], reverse=True):
+            st.write(f"📅 {eintrag['datum']}: Zahlen {', '.join(map(str, eintrag['zahlen']))} | Eurozahlen {', '.join(map(str, eintrag['eurozahlen']))}")
+
+if __name__ == "__main__":
+    main()
 
 import streamlit as st
 import pandas as pd
