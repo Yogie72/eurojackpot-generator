@@ -7,7 +7,7 @@ import os
 
 ARCHIV_DATEI = "archiv.json"
 
-# Archiv laden
+# 📁 Archiv laden
 def lade_archiv():
     if not os.path.exists(ARCHIV_DATEI):
         return []
@@ -18,32 +18,39 @@ def lade_archiv():
         os.remove(ARCHIV_DATEI)
         return []
 
-# Archiv speichern
+# 💾 Archiv speichern
 def speichere_archiv(archiv):
     with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
         json.dump(archiv, f, indent=2, ensure_ascii=False)
 
-# Ziehung von lotto24.de laden
+# 🌐 Aktuelle Ziehung von lotto24.de laden
 def lade_aktuelle_ziehung_lotto24():
     url = "https://www.lotto24.de/lottozahlen-quoten"
-    r = requests.get(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    }
+
+    r = requests.get(url, headers=headers)
     if r.status_code != 200:
         st.error(f"Fehler beim Laden der Seite: Status {r.status_code}")
         return None
 
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Datum auslesen
+    # 📅 Ziehungsdatum extrahieren
     datum_elem = soup.select_one("div.date.sprite")
     if not datum_elem:
+        st.warning("⚠️ Kein Datum auf der Seite gefunden.")
         return None
     datum_raw = datum_elem.text.strip()
 
-    # Zahlen extrahieren
+    # 🔢 Zahlen und ⭐ Eurozahlen extrahieren
     zahlen = [int(li.span.text) for li in soup.select("ul.balls li.ball")]
     eurozahlen = [int(li.span.text) for li in soup.select("ul.balls li.euro")]
 
     if len(zahlen) < 5 or len(eurozahlen) < 2:
+        st.warning("⚠️ Unvollständige Zahlen gefunden.")
         return None
 
     return {
@@ -52,7 +59,7 @@ def lade_aktuelle_ziehung_lotto24():
         "eurozahlen": eurozahlen[:2]
     }
 
-# Hauptfunktion
+# 🧠 Hauptfunktion
 def main():
     st.title("🎯 Eurojackpot – Aktuelle Ziehung (lotto24.de)")
     
@@ -64,24 +71,27 @@ def main():
         st.write("🔢 Hauptzahlen:", ", ".join(str(z) for z in aktuelle["zahlen"]))
         st.write("⭐ Eurozahlen:", ", ".join(str(e) for e in aktuelle["eurozahlen"]))
 
-        # Prüfen, ob Ziehung schon im Archiv ist
-        schon_drin = any(e["datum"] == aktuelle["datum"] for e in archiv)
-        if not schon_drin:
+        # 🔄 Archiv aktualisieren
+        if not any(e["datum"] == aktuelle["datum"] for e in archiv):
             archiv.append(aktuelle)
             speichere_archiv(archiv)
             st.info("📁 Neue Ziehung wurde dem Archiv hinzugefügt.")
     else:
         st.error("❌ Konnte aktuelle Ziehung nicht laden.")
 
-    # Archiv anzeigen
-    if st.checkbox("📚 Archiv anzeigen"):
+    # 📚 Archiv anzeigen
+    if st.checkbox("📂 Archivierte Ziehungen anzeigen"):
         if not archiv:
-            st.warning("Noch keine archivierten Ziehungen vorhanden.")
+            st.warning("Noch keine archivierten Ziehungen gespeichert.")
         else:
-            for eintrag in sorted(archiv, key=lambda x: x['datum'], reverse=True):
-                st.markdown(f"**📅 {eintrag['datum']}** — Zahlen: {', '.join(map(str, eintrag['zahlen']))} | Eurozahlen: {', '.join(map(str, eintrag['eurozahlen']))}")
+            for eintrag in sorted(archiv, key=lambda x: x["datum"], reverse=True):
+                st.markdown(
+                    f"📅 **{eintrag['datum']}** – Zahlen: "
+                    f"{', '.join(map(str, eintrag['zahlen']))} | "
+                    f"Eurozahlen: {', '.join(map(str, eintrag['eurozahlen']))}"
+                )
 
-# Start
+# ▶️ Startpunkt
 if __name__ == "__main__":
     main()
 
