@@ -5,6 +5,7 @@ import json
 import os
 from collections import Counter
 import pandas as pd
+from datetime import datetime
 
 ARCHIV_DATEI = "ziehungen.json"
 
@@ -19,7 +20,7 @@ def speichere_archiv(archiv):
     with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
         json.dump(archiv, f, indent=2, ensure_ascii=False)
 
-# Live-Daten von euro-jackpot.net laden
+# Ziehung scrapen
 def lade_aktuelle_ziehung():
     url = "https://www.euro-jackpot.net/de/gewinnzahlen"
     r = requests.get(url)
@@ -44,34 +45,42 @@ def berechne_haeufigkeit(archiv):
     df.index.name = 'Zahl'
     return df.reset_index().sort_values('Zahl')
 
-# === Streamlit UI ===
+# Streamlit Interface
+st.header("🔄 Eurojackpot-Ziehung: Live & Archiviert")
 
-st.header("🔄 Aktuelle Eurojackpot-Ziehung (Live + Archiv)")
-
-# Archiv & aktuelle Ziehung laden
+# Archiv laden
 archiv = lade_archiv()
+
+# Aktuelle Ziehung abrufen
 aktuelle_ziehung = lade_aktuelle_ziehung()
 
 if aktuelle_ziehung:
-    st.success(f"Ziehung vom {aktuelle_ziehung['datum']}")
-    st.write("**Zahlen:**", aktuelle_ziehung['zahlen'])
-    st.write("**Eurozahlen:**", aktuelle_ziehung['eurozahlen'])
+    st.success(f"📅 Aktuelle Ziehung vom: **{aktuelle_ziehung['datum']}**")
+    st.write("🔢 **Zahlen:**", aktuelle_ziehung["zahlen"])
+    st.write("⭐ **Eurozahlen:**", aktuelle_ziehung["eurozahlen"])
 
-    # prüfen, ob schon gespeichert
-    if not any(z['datum'] == aktuelle_ziehung['datum'] for z in archiv):
+    # Vergleichs-Datum vereinheitlichen
+    neues_datum = aktuelle_ziehung['datum'].strip().lower()
+    bereits_im_archiv = any(z['datum'].strip().lower() == neues_datum for z in archiv)
+
+    if not bereits_im_archiv:
         archiv.append(aktuelle_ziehung)
         speichere_archiv(archiv)
-        st.info("✅ Neue Ziehung wurde zum Archiv hinzugefügt.")
+        st.success("✅ Neue Ziehung gespeichert.")
     else:
-        st.info("ℹ️ Ziehung ist bereits im Archiv.")
+        st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
 
-    # Häufigkeit anzeigen
+    # Debug: Datumskontrolle (optional sichtbar machen)
+    heute = datetime.now().strftime("%d.%m.%Y")
+    st.caption(f"🧪 Heute ist: {heute} – Archiv enthält {len(archiv)} Ziehungen.")
+
+    # Häufigkeit
     df_freq = berechne_haeufigkeit(archiv)
-    st.subheader("📊 Häufigkeit aller Zahlen (aus Archiv)")
+    st.subheader("📊 Häufigkeit der Hauptzahlen")
     st.dataframe(df_freq)
 
 else:
-    st.error("❌ Die aktuellen Zahlen konnten nicht geladen werden.")
+    st.error("❌ Konnte aktuelle Ziehung nicht laden.")
 
 import streamlit as st
 import pandas as pd
