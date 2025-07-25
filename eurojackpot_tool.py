@@ -10,25 +10,24 @@ import locale
 
 ARCHIV_DATEI = "ziehungen.json"
 
-# Für deutsche Monatsnamen (eventuell je nach System anpassen)
+# Für deutsche Monatsnamen (je nach System evtl. anpassen)
 try:
     locale.setlocale(locale.LC_TIME, "de_DE.UTF-8")
 except locale.Error:
-    # Fallback, falls Locale nicht verfügbar ist
-    pass
+    pass  # Fallback, falls Locale nicht verfügbar
 
-# Datum normalisieren: "Freitag 25. Juli 2025" → "25.07.2025"
 def normalisiere_datum(text):
+    if not text or text.lower() == "unbekannt":
+        return None
     try:
-        teile = text.strip().split(" ", 1)  # Erster Teil oft Wochentag
+        teile = text.strip().split(" ", 1)  # Wochentag entfernen
         datum_text = teile[1] if len(teile) > 1 else text
         dt = datetime.strptime(datum_text, "%d. %B %Y")
         return dt.strftime("%d.%m.%Y")
     except Exception as e:
         st.warning(f"⚠️ Konnte Datum nicht verarbeiten: '{text}' ({e})")
-        return text.strip()
+        return None
 
-# Archiv sicher laden
 def lade_archiv():
     if not os.path.exists(ARCHIV_DATEI):
         return []
@@ -43,12 +42,10 @@ def lade_archiv():
         os.remove(ARCHIV_DATEI)
         return []
 
-# Archiv speichern
 def speichere_archiv(archiv):
     with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
         json.dump(archiv, f, indent=2, ensure_ascii=False)
 
-# Ziehung scrapen
 def lade_aktuelle_ziehung():
     url = "https://www.euro-jackpot.net/de/gewinnzahlen"
     r = requests.get(url)
@@ -65,7 +62,6 @@ def lade_aktuelle_ziehung():
         st.error(f"❌ Fehler beim Parsen: {e}")
         return None
 
-# Häufigkeit berechnen
 def berechne_haeufigkeit(archiv):
     alle = [zahl for eintrag in archiv for zahl in eintrag['zahlen']]
     zaehler = Counter(alle)
@@ -73,13 +69,9 @@ def berechne_haeufigkeit(archiv):
     df.index.name = 'Zahl'
     return df.reset_index().sort_values('Zahl')
 
-# Streamlit UI
 st.title("🎯 Eurojackpot Tool – Aktuelle Ziehung & Analyse")
 
-# Archiv laden
 archiv = lade_archiv()
-
-# Aktuelle Ziehung laden
 aktuelle_ziehung = lade_aktuelle_ziehung()
 
 if aktuelle_ziehung:
@@ -87,29 +79,25 @@ if aktuelle_ziehung:
     st.write("🔢 Zahlen:", aktuelle_ziehung['zahlen'])
     st.write("⭐ Eurozahlen:", aktuelle_ziehung['eurozahlen'])
 
-    # Debug-Ausgaben
-    st.write("🧪 Debug: Gescraptes Datum:", aktuelle_ziehung["datum"])
-    for eintrag in archiv:
-        st.write("📁 Im Archiv:", eintrag.get("datum"))
-
-    # Datum normalisieren zum Vergleich
     neues_datum = normalisiere_datum(aktuelle_ziehung['datum'])
 
-    bereits_im_archiv = any(
-        isinstance(z, dict) and 'datum' in z and normalisiere_datum(z['datum']) == neues_datum
-        for z in archiv
-    )
-
-    if not bereits_im_archiv:
-        archiv.append(aktuelle_ziehung)
-        speichere_archiv(archiv)
-        st.success("✅ Neue Ziehung gespeichert.")
+    if neues_datum is None:
+        st.error("❌ Aktuelles Datum konnte nicht normalisiert werden.")
     else:
-        st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
+        bereits_im_archiv = any(
+            isinstance(z, dict) and 'datum' in z and normalisiere_datum(z['datum']) == neues_datum
+            for z in archiv
+        )
+
+        if not bereits_im_archiv:
+            archiv.append(aktuelle_ziehung)
+            speichere_archiv(archiv)
+            st.success("✅ Neue Ziehung gespeichert.")
+        else:
+            st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
 else:
     st.error("❌ Konnte aktuelle Ziehung nicht laden.")
 
-# Häufigkeit anzeigen
 if archiv:
     st.subheader("📊 Häufigkeit der gezogenen Zahlen")
     df_freq = berechne_haeufigkeit(archiv)
