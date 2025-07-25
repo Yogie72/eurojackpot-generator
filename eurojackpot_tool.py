@@ -31,7 +31,6 @@ def normalisiere_datum(text):
             "Dezember": 12,
         }
 
-        # Entferne Punkte, splitte in Tag, Monat, Jahr
         parts = datum_text.replace(".", "").split()
         tag = int(parts[0])
         monat_name = parts[1]
