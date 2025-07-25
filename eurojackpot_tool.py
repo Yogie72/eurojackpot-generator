@@ -32,28 +32,26 @@ def lade_aktuelle_ziehung_westlotto():
         return None
     soup = BeautifulSoup(r.text, "html.parser")
 
-    h2 = soup.select_one("div.pull-left > h2")
-    if not h2:
+    # Datum suchen
+    datum_div = soup.select_one("div.headline__date")
+    if not datum_div:
         st.warning("⚠️ Kein Datum gefunden.")
         return None
-    datum_text = h2.get_text(strip=True)  # z.B. "Gewinnzahlen vom Freitag, 25. Juli 2025"
+    datum_text = datum_div.get_text(strip=True)  # z.B. "Freitag, 25. Juli 2025"
 
-    if "vom " in datum_text:
-        datum = datum_text.split("vom ")[1]
-    else:
-        datum = datum_text
-
+    # Zahlen finden - die Hauptzahlen sind in td mit Klasse 'result-number'
     zahlen_td = soup.select("td.result-number")
-    zahlen = [int(td.get_text(strip=True)) for td in zahlen_td[:5]]
+    zahlen = [int(td.get_text(strip=True)) for td in zahlen_td if td.get_text(strip=True).isdigit()]
 
+    # Eurozahlen - in td mit Klasse 'result-euro'
     euro_td = soup.select("td.result-euro")
-    eurozahlen = [int(td.get_text(strip=True)) for td in euro_td[:2]]
+    eurozahlen = [int(td.get_text(strip=True)) for td in euro_td if td.get_text(strip=True).isdigit()]
 
     if len(zahlen) != 5 or len(eurozahlen) != 2:
-        st.warning("⚠️ Ungenaue Anzahl Gewinnzahlen gefunden.")
+        st.warning(f"⚠️ Ungenaue Anzahl Gewinnzahlen gefunden. Zahlen: {len(zahlen)}, Eurozahlen: {len(eurozahlen)}")
         return None
 
-    return {"datum": datum, "zahlen": zahlen, "eurozahlen": eurozahlen}
+    return {"datum": datum_text, "zahlen": zahlen, "eurozahlen": eurozahlen}
 
 # --- Streamlit App Start ---
 
@@ -67,7 +65,6 @@ if aktuelle_ziehung:
     st.write(f"🔢 Hauptzahlen: {aktuelle_ziehung['zahlen']}")
     st.write(f"⭐ Eurozahlen: {aktuelle_ziehung['eurozahlen']}")
 
-    # Prüfen, ob die aktuelle Ziehung schon im Archiv ist
     bereits_im_archiv = any(e['datum'] == aktuelle_ziehung['datum'] for e in archiv)
     if not bereits_im_archiv:
         archiv.append(aktuelle_ziehung)
@@ -75,7 +72,6 @@ if aktuelle_ziehung:
         st.success("✅ Neue Ziehung zum Archiv hinzugefügt.")
     else:
         st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
-
 else:
     st.error("❌ Konnte aktuelle Ziehung nicht laden.")
 
