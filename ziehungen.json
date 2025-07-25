@@ -1,6 +1,0 @@
-bereits_im_archiv = any(
-    isinstance(z, dict) and 'datum' in z and z['datum'].strip().lower() == neues_datum
-    for z in archiv
-)
-st.write("📁 Archiv enthält:")
-st.write(archiv)
