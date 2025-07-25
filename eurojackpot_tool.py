@@ -6,8 +6,27 @@ import os
 from collections import Counter
 import pandas as pd
 from datetime import datetime
+import locale
 
 ARCHIV_DATEI = "ziehungen.json"
+
+# Für deutsche Monatsnamen (eventuell je nach System anpassen)
+try:
+    locale.setlocale(locale.LC_TIME, "de_DE.UTF-8")
+except locale.Error:
+    # Fallback, falls Locale nicht verfügbar ist
+    pass
+
+# Datum normalisieren: "Freitag 25. Juli 2025" → "25.07.2025"
+def normalisiere_datum(text):
+    try:
+        teile = text.strip().split(" ", 1)  # Erster Teil oft Wochentag
+        datum_text = teile[1] if len(teile) > 1 else text
+        dt = datetime.strptime(datum_text, "%d. %B %Y")
+        return dt.strftime("%d.%m.%Y")
+    except Exception as e:
+        st.warning(f"⚠️ Konnte Datum nicht verarbeiten: '{text}' ({e})")
+        return text.strip()
 
 # Archiv sicher laden
 def lade_archiv():
@@ -73,10 +92,11 @@ if aktuelle_ziehung:
     for eintrag in archiv:
         st.write("📁 Im Archiv:", eintrag.get("datum"))
 
-    # Prüfung, ob bereits im Archiv
-    neues_datum = aktuelle_ziehung['datum'].strip().lower()
+    # Datum normalisieren zum Vergleich
+    neues_datum = normalisiere_datum(aktuelle_ziehung['datum'])
+
     bereits_im_archiv = any(
-        isinstance(z, dict) and 'datum' in z and z['datum'].strip().lower() == neues_datum
+        isinstance(z, dict) and 'datum' in z and normalisiere_datum(z['datum']) == neues_datum
         for z in archiv
     )
 
