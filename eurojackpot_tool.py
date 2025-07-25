@@ -4,40 +4,48 @@ from bs4 import BeautifulSoup
 import json
 import os
 
-ARCHIV_DATEI = "archiv.json"
+ARCHIV_DATEI = "archiv_ziehungen.json"
 
 def lade_archiv():
-    if os.path.exists(ARCHIV_DATEI):
-        try:
-            return json.load(open(ARCHIV_DATEI, "r", encoding="utf-8"))
-        except json.JSONDecodeError:
-            os.remove(ARCHIV_DATEI)
-    return []
+    if not os.path.exists(ARCHIV_DATEI):
+        return []
+    try:
+        with open(ARCHIV_DATEI, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        st.warning(f"⚠️ Fehler beim Laden des Archivs: {e}")
+        return []
 
 def speichere_archiv(archiv):
-    json.dump(archiv, open(ARCHIV_DATEI, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    try:
+        with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
+            json.dump(archiv, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        st.warning(f"⚠️ Fehler beim Speichern des Archivs: {e}")
 
 def lade_aktuelle_ziehung_westlotto():
     url = "https://www.westlotto.de/infos-und-zahlen/gewinnzahlen/eurojackpot/gewinnzahlen_ejp.html"
-    headers = {"User-Agent": "Mozilla/5.0"}  # wichtig, um 403 zu vermeiden
+    headers = {"User-Agent": "Mozilla/5.0"}
     r = requests.get(url, headers=headers)
     if r.status_code != 200:
         st.error(f"Fehler beim Laden der Seite: {r.status_code}")
         return None
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Datum finden
-    datum_span = soup.select_one("span.date")
-    if not datum_span:
+    h2 = soup.select_one("div.pull-left > h2")
+    if not h2:
         st.warning("⚠️ Kein Datum gefunden.")
         return None
-    datum = datum_span.get_text(strip=True)
+    datum_text = h2.get_text(strip=True)  # z.B. "Gewinnzahlen vom Freitag, 25. Juli 2025"
 
-    # Gewinnzahlen (5 Stück)
+    if "vom " in datum_text:
+        datum = datum_text.split("vom ")[1]
+    else:
+        datum = datum_text
+
     zahlen_td = soup.select("td.result-number")
     zahlen = [int(td.get_text(strip=True)) for td in zahlen_td[:5]]
 
-    # Eurozahlen (2 Stück)
     euro_td = soup.select("td.result-euro")
     eurozahlen = [int(td.get_text(strip=True)) for td in euro_td[:2]]
 
@@ -47,36 +55,38 @@ def lade_aktuelle_ziehung_westlotto():
 
     return {"datum": datum, "zahlen": zahlen, "eurozahlen": eurozahlen}
 
-def main():
-    st.title("🎯 Eurojackpot – Aktuelle Ziehung (WestLotto)")
+# --- Streamlit App Start ---
 
-    archiv = lade_archiv()
-    aktuelle = lade_aktuelle_ziehung_westlotto()
+st.title("Eurojackpot - Aktuelle Ziehung & Archiv")
 
-    if aktuelle:
-        st.success(f"📅 Ziehung vom **{aktuelle['datum']}**")
-        st.write("🔢 Hauptzahlen:", ", ".join(map(str, aktuelle["zahlen"])))
-        st.write("⭐ Eurozahlen:", ", ".join(map(str, aktuelle["eurozahlen"])))
+archiv = lade_archiv()
+aktuelle_ziehung = lade_aktuelle_ziehung_westlotto()
 
-        if not any(e["datum"] == aktuelle["datum"] for e in archiv):
-            archiv.append(aktuelle)
-            speichere_archiv(archiv)
-            st.info("📁 Neue Ziehung zum Archiv hinzugefügt.")
+if aktuelle_ziehung:
+    st.write(f"📅 Ziehung vom {aktuelle_ziehung['datum']}")
+    st.write(f"🔢 Hauptzahlen: {aktuelle_ziehung['zahlen']}")
+    st.write(f"⭐ Eurozahlen: {aktuelle_ziehung['eurozahlen']}")
+
+    # Prüfen, ob die aktuelle Ziehung schon im Archiv ist
+    bereits_im_archiv = any(e['datum'] == aktuelle_ziehung['datum'] for e in archiv)
+    if not bereits_im_archiv:
+        archiv.append(aktuelle_ziehung)
+        speichere_archiv(archiv)
+        st.success("✅ Neue Ziehung zum Archiv hinzugefügt.")
     else:
-        st.error("❌ Konnte aktuelle Ziehung nicht laden.")
+        st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
 
-    if st.checkbox("📂 Archiv anzeigen"):
-        if not archiv:
-            st.warning("Noch keine archivierten Ziehungen.")
-        else:
-            for ein in sorted(archiv, key=lambda x: x["datum"], reverse=True):
-                st.markdown(
-                    f"📅 **{ein['datum']}** – Zahlen: {', '.join(map(str, ein['zahlen']))} | "
-                    f"Eurozahlen: {', '.join(map(str, ein['eurozahlen']))}"
-                )
+else:
+    st.error("❌ Konnte aktuelle Ziehung nicht laden.")
 
-if __name__ == "__main__":
-    main()
+st.markdown("---")
+st.header("Archivierte Ziehungen")
+
+if archiv:
+    for eintrag in sorted(archiv, key=lambda x: x['datum'], reverse=True):
+        st.write(f"📅 {eintrag['datum']}: Zahlen {eintrag['zahlen']} | Eurozahlen {eintrag['eurozahlen']}")
+else:
+    st.write("Noch keine archivierten Ziehungen vorhanden.")
 
 import streamlit as st
 import pandas as pd
