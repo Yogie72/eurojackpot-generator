@@ -14,14 +14,18 @@ ARCHIV_DATEI = "ziehungen.json"
 try:
     locale.setlocale(locale.LC_TIME, "de_DE.UTF-8")
 except locale.Error:
-    pass  # Fallback, falls Locale nicht verfügbar
+    pass  # Falls Locale nicht verfügbar, einfach ignorieren
 
 def normalisiere_datum(text):
     if not text or text.lower() == "unbekannt":
         return None
     try:
-        teile = text.strip().split(" ", 1)  # Wochentag entfernen
-        datum_text = teile[1] if len(teile) > 1 else text
+        # Beispiel: "Freitag, 25. Juli 2025"
+        # Wir entfernen ggf. den Wochentag (alles vor Komma)
+        if "," in text:
+            datum_text = text.split(",", 1)[1].strip()
+        else:
+            datum_text = text.strip()
         dt = datetime.strptime(datum_text, "%d. %B %Y")
         return dt.strftime("%d.%m.%Y")
     except Exception as e:
@@ -50,18 +54,24 @@ def lade_aktuelle_ziehung():
     url = "https://www.euro-jackpot.net/de/gewinnzahlen"
     r = requests.get(url)
     if r.status_code != 200:
+        st.error("❌ Konnte Webseite nicht laden.")
         return None
     soup = BeautifulSoup(r.text, "html.parser")
     try:
-        zahlen = [int(e.text) for e in soup.select("div.numbers > ul.main > li")]
-        euro = [int(e.text) for e in soup.select("div.numbers > ul.euro > li")]
-        datum_element = soup.select_one("div.result > h3")
+        # Datum aus <p class="draw-date">Freitag, 25. Juli 2025</p>
+        datum_element = soup.select_one("p.draw-date")
         if datum_element:
             datum_raw = datum_element.text.strip()
             st.write(f"🔍 Rohes Datum von der Webseite: '{datum_raw}'")
         else:
             datum_raw = "Unbekannt"
             st.warning("⚠️ Kein Datum auf der Webseite gefunden.")
+
+        # Hauptzahlen
+        zahlen = [int(li.text.strip()) for li in soup.select("ul.draw-numbers li")]
+        # Eurozahlen
+        euro = [int(li.text.strip()) for li in soup.select("ul.draw-euro-numbers li")]
+
         return {"datum": datum_raw, "zahlen": zahlen, "eurozahlen": euro}
     except Exception as e:
         st.error(f"❌ Fehler beim Parsen: {e}")
