@@ -9,7 +9,7 @@ from datetime import datetime
 
 ARCHIV_DATEI = "ziehungen.json"
 
-# Archiv laden & speichern
+# Archiv sicher laden
 def lade_archiv():
     if not os.path.exists(ARCHIV_DATEI):
         return []
@@ -17,19 +17,20 @@ def lade_archiv():
         with open(ARCHIV_DATEI, "r", encoding="utf-8") as f:
             daten = f.read().strip()
             if not daten:
-                # Datei ist leer
                 return []
             return json.loads(daten)
     except (json.JSONDecodeError, ValueError):
-        st.warning("⚠️ Archiv beschädigt oder ungültig. Es wird neu gestartet.")
-        os.remove(ARCHIV_DATEI)  # beschädigte Datei löschen
+        st.warning("⚠️ Archiv beschädigt oder leer – wird neu gestartet.")
+        os.remove(ARCHIV_DATEI)
         return []
+
+# Archiv speichern
+def speichere_archiv(archiv):
+    with open(ARCHIV_DATEI, "w", encoding="utf-8") as f:
+        json.dump(archiv, f, indent=2, ensure_ascii=False)
 
 # Ziehung scrapen
 def lade_aktuelle_ziehung():
-    st.write("🧪 Debug: Gescraptes Datum:", aktuelle_ziehung["datum"])
-for eintrag in archiv:
-    st.write("📁 Im Archiv:", eintrag.get("datum"))
     url = "https://www.euro-jackpot.net/de/gewinnzahlen"
     r = requests.get(url)
     if r.status_code != 200:
@@ -42,10 +43,10 @@ for eintrag in archiv:
         datum = datum_element.text.strip() if datum_element else "Unbekannt"
         return {"datum": datum, "zahlen": zahlen, "eurozahlen": euro}
     except Exception as e:
-        st.error(f"Fehler beim Parsen: {e}")
+        st.error(f"❌ Fehler beim Parsen: {e}")
         return None
 
-# Häufigkeiten berechnen
+# Häufigkeit berechnen
 def berechne_haeufigkeit(archiv):
     alle = [zahl for eintrag in archiv for zahl in eintrag['zahlen']]
     zaehler = Counter(alle)
@@ -53,23 +54,31 @@ def berechne_haeufigkeit(archiv):
     df.index.name = 'Zahl'
     return df.reset_index().sort_values('Zahl')
 
-# Streamlit Interface
-st.header("🔄 Eurojackpot-Ziehung: Live & Archiviert")
+# Streamlit UI
+st.title("🎯 Eurojackpot Tool – Aktuelle Ziehung & Analyse")
 
 # Archiv laden
 archiv = lade_archiv()
 
-# Aktuelle Ziehung abrufen
+# Aktuelle Ziehung laden
 aktuelle_ziehung = lade_aktuelle_ziehung()
 
 if aktuelle_ziehung:
-    st.success(f"📅 Aktuelle Ziehung vom: **{aktuelle_ziehung['datum']}**")
-    st.write("🔢 **Zahlen:**", aktuelle_ziehung["zahlen"])
-    st.write("⭐ **Eurozahlen:**", aktuelle_ziehung["eurozahlen"])
+    st.success(f"📅 Aktuelle Ziehung vom **{aktuelle_ziehung['datum']}**")
+    st.write("🔢 Zahlen:", aktuelle_ziehung['zahlen'])
+    st.write("⭐ Eurozahlen:", aktuelle_ziehung['eurozahlen'])
 
-    # Vergleichs-Datum vereinheitlichen
+    # Debug-Ausgaben
+    st.write("🧪 Debug: Gescraptes Datum:", aktuelle_ziehung["datum"])
+    for eintrag in archiv:
+        st.write("📁 Im Archiv:", eintrag.get("datum"))
+
+    # Prüfung, ob bereits im Archiv
     neues_datum = aktuelle_ziehung['datum'].strip().lower()
-    bereits_im_archiv = any(z['datum'].strip().lower() == neues_datum for z in archiv)
+    bereits_im_archiv = any(
+        isinstance(z, dict) and 'datum' in z and z['datum'].strip().lower() == neues_datum
+        for z in archiv
+    )
 
     if not bereits_im_archiv:
         archiv.append(aktuelle_ziehung)
@@ -77,18 +86,14 @@ if aktuelle_ziehung:
         st.success("✅ Neue Ziehung gespeichert.")
     else:
         st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
-
-    # Debug: Datumskontrolle (optional sichtbar machen)
-    heute = datetime.now().strftime("%d.%m.%Y")
-    st.caption(f"🧪 Heute ist: {heute} – Archiv enthält {len(archiv)} Ziehungen.")
-
-    # Häufigkeit
-    df_freq = berechne_haeufigkeit(archiv)
-    st.subheader("📊 Häufigkeit der Hauptzahlen")
-    st.dataframe(df_freq)
-
 else:
     st.error("❌ Konnte aktuelle Ziehung nicht laden.")
+
+# Häufigkeit anzeigen
+if archiv:
+    st.subheader("📊 Häufigkeit der gezogenen Zahlen")
+    df_freq = berechne_haeufigkeit(archiv)
+    st.dataframe(df_freq)
 
 import streamlit as st
 import pandas as pd
