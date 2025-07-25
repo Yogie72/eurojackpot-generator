@@ -1,2 +1,6 @@
-{"datum": "Freitag 25. Juli 2025", "zahlen": [10, 20, 30, 40, 50], "eurozahlen": [5, 9]}
-bereits_im_archiv = any(z['datum'].strip().lower() == neues_datum for z in archiv)
+bereits_im_archiv = any(
+    isinstance(z, dict) and 'datum' in z and z['datum'].strip().lower() == neues_datum
+    for z in archiv
+)
+st.write("📁 Archiv enthält:")
+st.write(archiv)
