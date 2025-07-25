@@ -3,25 +3,21 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
-from collections import Counter
-import pandas as pd
 from datetime import datetime
 import locale
 
 ARCHIV_DATEI = "ziehungen.json"
 
-# Für deutsche Monatsnamen (je nach System evtl. anpassen)
 try:
     locale.setlocale(locale.LC_TIME, "de_DE.UTF-8")
 except locale.Error:
-    pass  # Falls Locale nicht verfügbar, einfach ignorieren
+    pass
 
 def normalisiere_datum(text):
     if not text or text.lower() == "unbekannt":
         return None
     try:
         # Beispiel: "Freitag, 25. Juli 2025"
-        # Wir entfernen ggf. den Wochentag (alles vor Komma)
         if "," in text:
             datum_text = text.split(",", 1)[1].strip()
         else:
@@ -58,31 +54,17 @@ def lade_aktuelle_ziehung():
         return None
     soup = BeautifulSoup(r.text, "html.parser")
     try:
-        # Datum aus <p class="draw-date">Freitag, 25. Juli 2025</p>
-        datum_element = soup.select_one("p.draw-date")
-        if datum_element:
-            datum_raw = datum_element.text.strip()
-            st.write(f"🔍 Rohes Datum von der Webseite: '{datum_raw}'")
-        else:
-            datum_raw = "Unbekannt"
-            st.warning("⚠️ Kein Datum auf der Webseite gefunden.")
+        datum_element = soup.select_one("div.date.sprite")
+        datum_raw = datum_element.text.strip() if datum_element else "Unbekannt"
+        st.write(f"🔍 Rohes Datum von der Webseite: '{datum_raw}'")
 
-        # Hauptzahlen
-        zahlen = [int(li.text.strip()) for li in soup.select("ul.draw-numbers li")]
-        # Eurozahlen
-        euro = [int(li.text.strip()) for li in soup.select("ul.draw-euro-numbers li")]
+        zahlen = [int(li.span.text) for li in soup.select("ul.balls li.ball")]
+        euro = [int(li.span.text) for li in soup.select("ul.balls li.euro")]
 
         return {"datum": datum_raw, "zahlen": zahlen, "eurozahlen": euro}
     except Exception as e:
         st.error(f"❌ Fehler beim Parsen: {e}")
         return None
-
-def berechne_haeufigkeit(archiv):
-    alle = [zahl for eintrag in archiv for zahl in eintrag['zahlen']]
-    zaehler = Counter(alle)
-    df = pd.DataFrame.from_dict(zaehler, orient='index', columns=['Häufigkeit'])
-    df.index.name = 'Zahl'
-    return df.reset_index().sort_values('Zahl')
 
 st.title("🎯 Eurojackpot Tool – Aktuelle Ziehung & Analyse")
 
@@ -112,11 +94,6 @@ if aktuelle_ziehung:
             st.info("ℹ️ Diese Ziehung ist bereits im Archiv.")
 else:
     st.error("❌ Konnte aktuelle Ziehung nicht laden.")
-
-if archiv:
-    st.subheader("📊 Häufigkeit der gezogenen Zahlen")
-    df_freq = berechne_haeufigkeit(archiv)
-    st.dataframe(df_freq)
 
 import streamlit as st
 import pandas as pd
