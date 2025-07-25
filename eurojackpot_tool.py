@@ -4,14 +4,8 @@ from bs4 import BeautifulSoup
 import json
 import os
 from datetime import datetime
-import locale
 
 ARCHIV_DATEI = "ziehungen.json"
-
-try:
-    locale.setlocale(locale.LC_TIME, "de_DE.UTF-8")
-except locale.Error:
-    pass
 
 def normalisiere_datum(text):
     if not text or text.lower() == "unbekannt":
@@ -21,8 +15,33 @@ def normalisiere_datum(text):
             datum_text = text.split(",", 1)[1].strip()
         else:
             datum_text = text.strip()
-        # Datumsformat ohne Punkt nach dem Tag
-        dt = datetime.strptime(datum_text, "%d %B %Y")
+
+        monate = {
+            "Januar": 1,
+            "Februar": 2,
+            "März": 3,
+            "April": 4,
+            "Mai": 5,
+            "Juni": 6,
+            "Juli": 7,
+            "August": 8,
+            "September": 9,
+            "Oktober": 10,
+            "November": 11,
+            "Dezember": 12,
+        }
+
+        # Entferne Punkte, splitte in Tag, Monat, Jahr
+        parts = datum_text.replace(".", "").split()
+        tag = int(parts[0])
+        monat_name = parts[1]
+        jahr = int(parts[2])
+        monat = monate.get(monat_name)
+
+        if monat is None:
+            raise ValueError(f"Unbekannter Monat: {monat_name}")
+
+        dt = datetime(jahr, monat, tag)
         return dt.strftime("%d.%m.%Y")
     except Exception as e:
         st.warning(f"⚠️ Konnte Datum nicht verarbeiten: '{text}' ({e})")
