@@ -91,8 +91,10 @@ aktuelle_ziehung = lade_aktuelle_ziehung()
 
 if aktuelle_ziehung:
     st.success(f"📅 Aktuelle Ziehung vom **{aktuelle_ziehung['datum']}**")
-    st.write("🔢 Zahlen:", aktuelle_ziehung['zahlen'])
-    st.write("⭐ Eurozahlen:", aktuelle_ziehung['eurozahlen'])
+    st.write("🔢 Zahlen:", ", ".join(str(z) for z in aktuelle_ziehung['zahlen']))
+    st.write("⭐ Eurozahlen:", ", ".join(str(e) for e in aktuelle_ziehung['eurozahlen']))
+else:
+    st.error("❌ Konnte aktuelle Ziehung nicht laden.")
 
     neues_datum = normalisiere_datum(aktuelle_ziehung['datum'])
 
