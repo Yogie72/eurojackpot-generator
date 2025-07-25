@@ -2,3 +2,4 @@ streamlit
 fpdf
 pandas
 xlsxwriter
+plotly
