@@ -126,3 +126,108 @@ tipps = [generiere_tipp() for _ in range(anzahl_tipps)]
 
 for i, tipp in enumerate(tipps, 1):
     st.write(f"Tipp {i}: {tipp}")
+import streamlit as st
+import pandas as pd
+import random
+import plotly.express as px
+
+st.set_page_config(page_title="Eurojackpot Tipp-Tool", layout="centered")
+st.title("Eurojackpot Tipp-Tool mit erweiterten Strategien")
+
+# --- Beispiel-Daten (Häufigkeiten) ---
+zahlen_haeufigkeit = {
+    1: 85, 2: 42, 3: 58, 4: 33, 5: 77,
+    6: 49, 7: 95, 8: 22, 9: 60, 10: 55,
+    11: 70, 12: 15, 13: 38, 14: 80, 15: 44,
+    16: 29, 17: 66, 18: 90, 19: 35, 20: 50,
+    21: 28, 22: 43, 23: 62, 24: 27, 25: 72,
+    26: 31, 27: 48, 28: 53, 29: 36, 30: 40,
+    31: 75, 32: 20, 33: 55, 34: 63, 35: 47,
+    36: 37, 37: 67, 38: 58, 39: 30, 40: 52,
+    41: 39, 42: 69, 43: 22, 44: 44, 45: 73,
+    46: 26, 47: 41, 48: 50, 49: 59, 50: 34
+}
+
+df_stat = pd.DataFrame({
+    'Zahl': list(zahlen_haeufigkeit.keys()),
+    'Häufigkeit': list(zahlen_haeufigkeit.values())
+})
+
+anzahl_hot_cold = 10
+hot = sorted(df_stat.sort_values('Häufigkeit', ascending=False)['Zahl'][:anzahl_hot_cold])
+cold = sorted(df_stat.sort_values('Häufigkeit', ascending=True)['Zahl'][:anzahl_hot_cold])
+
+# --- Eingabefelder für erweiterte Einstellungen ---
+st.header("Erweiterte Tipp-Strategien")
+
+min_abstand = st.slider("Mindestabstand zwischen Zahlen im Tipp", 1, 10, 2)
+hot_anzahl = st.slider("Anzahl Hot-Zahlen pro Tipp", 1, 5, 3)
+cold_anzahl = st.slider("Anzahl Cold-Zahlen pro Tipp", 0, 5, 2)
+
+ausgeschlossen = st.text_input("Zahlen ausschließen (Komma-getrennt)", "")
+favoriten = st.text_input("Zahlen bevorzugen (Komma-getrennt)", "")
+
+def parse_eingabe(text):
+    if not text.strip():
+        return []
+    return sorted({int(x.strip()) for x in text.split(",") if x.strip().isdigit() and 1 <= int(x.strip()) <= 50})
+
+ausgeschlossen_list = parse_eingabe(ausgeschlossen)
+favoriten_list = parse_eingabe(favoriten)
+
+st.write(f"Ausgeschlossene Zahlen: {ausgeschlossen_list}")
+st.write(f"Bevorzugte Zahlen: {favoriten_list}")
+
+# Filter Hot/Cold-Zahlen nach Ausschluss
+hot_filtered = [z for z in hot if z not in ausgeschlossen_list]
+cold_filtered = [z for z in cold if z not in ausgeschlossen_list]
+
+# Sicherstellen, dass Favoriten nicht ausgeschlossen sind
+favoriten_filtered = [z for z in favoriten_list if z not in ausgeschlossen_list]
+
+# Funktion: Prüft Mindestabstand
+def pruefe_abstand(tipp, zahl, abstand):
+    return all(abs(zahl - z) >= abstand for z in tipp)
+
+# Tipp-Generator mit Regeln
+def generiere_tipp_erweitert():
+    tipp = []
+
+    # Zuerst Favoriten einfügen (wenn möglich)
+    for f in favoriten_filtered:
+        if len(tipp) < 5 and pruefe_abstand(tipp, f, min_abstand):
+            tipp.append(f)
+
+    # Dann Hot-Zahlen auffüllen
+    for zahl in hot_filtered:
+        if len(tipp) >= hot_anzahl + cold_anzahl:
+            break
+        if len(tipp) < hot_anzahl + len(favoriten_filtered) and pruefe_abstand(tipp, zahl, min_abstand):
+            if zahl not in tipp:
+                tipp.append(zahl)
+
+    # Dann Cold-Zahlen auffüllen
+    for zahl in cold_filtered:
+        if len(tipp) >= hot_anzahl + cold_anzahl + len(favoriten_filtered):
+            break
+        if len(tipp) < hot_anzahl + cold_anzahl + len(favoriten_filtered) and pruefe_abstand(tipp, zahl, min_abstand):
+            if zahl not in tipp:
+                tipp.append(zahl)
+
+    # Falls noch nicht 5 Zahlen, mit Zufallszahlen auffüllen
+    alle_zahlen = [z for z in range(1, 51) if z not in ausgeschlossen_list and z not in tipp]
+    random.shuffle(alle_zahlen)
+    while len(tipp) < 5 and alle_zahlen:
+        zahl = alle_zahlen.pop()
+        if pruefe_abstand(tipp, zahl, min_abstand):
+            tipp.append(zahl)
+
+    return sorted(tipp)
+
+# Tipp-Generierung
+anzahl_tipps = st.slider("Wie viele Tipps generieren?", 1, 10, 3)
+tipps = [generiere_tipp_erweitert() for _ in range(anzahl_tipps)]
+
+st.header("Generierte Tipps")
+for i, tipp in enumerate(tipps, 1):
+    st.write(f"Tipp {i}: {tipp}")
