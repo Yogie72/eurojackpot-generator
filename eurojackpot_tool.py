@@ -17,47 +17,63 @@ def lade_archiv():
 def speichere_archiv(archiv):
     json.dump(archiv, open(ARCHIV_DATEI, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 
-def lade_aktuelle_ziehung_eurojackpot():
-    url = "https://www.eurojackpot.net/de/gewinnzahlen"
-    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+def lade_aktuelle_ziehung_westlotto():
+    url = "https://www.westlotto.de/infos-und-zahlen/gewinnzahlen/eurojackpot/gewinnzahlen_ejp.html"
+    headers = {"User-Agent": "Mozilla/5.0"}  # wichtig, um 403 zu vermeiden
+    r = requests.get(url, headers=headers)
     if r.status_code != 200:
         st.error(f"Fehler beim Laden der Seite: {r.status_code}")
         return None
     soup = BeautifulSoup(r.text, "html.parser")
-    datum_elem = soup.select_one("div.date")
-    if not datum_elem:
+
+    # Datum finden
+    datum_span = soup.select_one("span.date")
+    if not datum_span:
         st.warning("⚠️ Kein Datum gefunden.")
         return None
-    datum = datum_elem.get_text(strip=True)
-    zahlen = [int(li.get_text(strip=True)) for li in soup.select("div.numbers ul.main li")]
-    euro = [int(li.get_text(strip=True)) for li in soup.select("div.numbers ul.euro li")]
-    if len(zahlen) != 5 or len(euro) != 2:
-        st.warning("⚠️ Prüfzahlfehler: Hauptzahlen oder Eurozahlen fehlen.")
+    datum = datum_span.get_text(strip=True)
+
+    # Gewinnzahlen (5 Stück)
+    zahlen_td = soup.select("td.result-number")
+    zahlen = [int(td.get_text(strip=True)) for td in zahlen_td[:5]]
+
+    # Eurozahlen (2 Stück)
+    euro_td = soup.select("td.result-euro")
+    eurozahlen = [int(td.get_text(strip=True)) for td in euro_td[:2]]
+
+    if len(zahlen) != 5 or len(eurozahlen) != 2:
+        st.warning("⚠️ Ungenaue Anzahl Gewinnzahlen gefunden.")
         return None
-    return {"datum": datum, "zahlen": zahlen, "eurozahlen": euro}
+
+    return {"datum": datum, "zahlen": zahlen, "eurozahlen": eurozahlen}
 
 def main():
-    st.title("🎯 Eurojackpot – Aktuelle Ziehung (eurojackpot.net)")
+    st.title("🎯 Eurojackpot – Aktuelle Ziehung (WestLotto)")
+
     archiv = lade_archiv()
-    aktuelle = lade_aktuelle_ziehung_eurojackpot()
+    aktuelle = lade_aktuelle_ziehung_westlotto()
+
     if aktuelle:
         st.success(f"📅 Ziehung vom **{aktuelle['datum']}**")
         st.write("🔢 Hauptzahlen:", ", ".join(map(str, aktuelle["zahlen"])))
         st.write("⭐ Eurozahlen:", ", ".join(map(str, aktuelle["eurozahlen"])))
+
         if not any(e["datum"] == aktuelle["datum"] for e in archiv):
             archiv.append(aktuelle)
             speichere_archiv(archiv)
             st.info("📁 Neue Ziehung zum Archiv hinzugefügt.")
     else:
         st.error("❌ Konnte aktuelle Ziehung nicht laden.")
+
     if st.checkbox("📂 Archiv anzeigen"):
         if not archiv:
             st.warning("Noch keine archivierten Ziehungen.")
-        for ein in sorted(archiv, key=lambda x: x["datum"], reverse=True):
-            st.markdown(
-                f"📅 **{ein['datum']}** – Zahlen: {', '.join(map(str, ein['zahlen']))} | "
-                f"Eurozahlen: {', '.join(map(str, ein['eurozahlen']))}"
-            )
+        else:
+            for ein in sorted(archiv, key=lambda x: x["datum"], reverse=True):
+                st.markdown(
+                    f"📅 **{ein['datum']}** – Zahlen: {', '.join(map(str, ein['zahlen']))} | "
+                    f"Eurozahlen: {', '.join(map(str, ein['eurozahlen']))}"
+                )
 
 if __name__ == "__main__":
     main()
